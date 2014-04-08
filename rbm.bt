@@ -82,9 +82,43 @@ struct CarPaint {
     uint deformTable[256];
 };
 
+struct DeformableWindowData0 {
+    float posX;
+    float posY;
+    float posZ;
+    float posW;
+    short tex1A;
+    short tex1B;
+    short tex1C;
+    short tex1D;
+    float tex2A;
+    float tex2B;
+    float tex2C;
+    float tex2D;
+    float U;
+    float V;
+};
+
 struct DeformableWindow {
     ubyte version;
-    
+    Material material;
+    if (version >= 2) {
+        uint unknown;
+        uint deformTable[256];
+    }
+
+    int data0Count <hidden=true>;
+    DeformableWindowData0 data0[data0Count];
+
+    int faceCount <hidden=true>;
+    short faces[faceCount];
+
+    if (version >= 0 && version <= 1) {
+        uint deformTable[256];
+    }
+    if (version == 1) {
+        uint unknown;
+    }
 };
 
 struct RBM {
