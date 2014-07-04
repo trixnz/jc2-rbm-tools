@@ -13,6 +13,41 @@ string printString(struct STRING &s) {
     }
 }
 
+enum PackOrder {
+    XZY,
+    ZXY,
+};
+
+typedef struct (PackOrder order) {
+    float packed <hidden=true>;
+    local float x, y, z;
+
+    if (order == XZY) {
+        x = packed;
+        y = packed / 65536.0f;
+        z = packed / 256.0f;
+    } else if (order == ZXY) {
+        x = packed / 256.0f;
+        y = packed / 65536.0f;
+        z = packed;
+    }
+
+    x -= Floor(x);
+    y -= Floor(y);
+    z -= Floor(z);
+
+    x = x*2 - 1;
+    y = y*2 - 1;
+    z = z*2 - 1;
+} PackedVector <read=printPackedVector>;
+
+string printPackedVector(struct PackedVector &p) {
+    local string ret;
+    SPrintf(ret, "(%.4f, %.4f, %.4f)", p.x, p.y, p.z);
+    return ret;
+}
+
+
 struct UnknownData0 {
     float Unknown00;
     float Unknown04;
@@ -55,13 +90,14 @@ struct CarPaintData0 {
 };
 
 struct CarPaintData1 {
-    float TexCoord1A;
-    float TexCoord1B;
-    float TexCoord1C;
-    float TexCoord2A;
-    float TexCoord2B;
-    float TexCoord2C;
-    float TexCoord2D;
+    float u;
+    float v;
+    float w;
+
+    PackedVector normal(XZY);
+    PackedVector deformedNormal(XZY);
+    PackedVector tangent(ZXY);
+    PackedVector deformedTangent(ZXY);
 };
 
 struct CarPaint {
@@ -74,7 +110,7 @@ struct CarPaint {
     CarPaintData0 data0[data0Count];
 
     int data1Count <hidden=true>;
-    CarPaintData1 data1[data1Count];
+    CarPaintData1 data1[data1Count] <optimize=true>;
 
     int faceCount <hidden=true>;
     short faces[faceCount];
