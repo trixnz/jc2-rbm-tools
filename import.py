@@ -1,7 +1,15 @@
 import bpy
+import math
 import struct
 from bpy_extras.io_utils import unpack_list, unpack_face_list
 
+def frac(v):
+    return [x - math.floor(x) for x in v]
+
+def unpack(packed, unpacker):
+    unpacked = [packed * x for x in unpacker]
+
+    return [(x * 2) - 1 for x in frac(unpacked)]
 
 def read_some_data(context, filepath, use_some_setting):
     print("running read_some_data...")
@@ -347,8 +355,6 @@ def processCarPaint(f, blocks):
         print("%d %d %d %d" %(extra1, extra2, extra3, extra4))
         #print("%d %d" %(extra1, extra2))
         
-        normals.append(((extra1/65536), (extra2/65536), (extra3/65536), (extra4/65536), w/65536))
-        
         #skip data
         #f.read(4)
         
@@ -365,13 +371,12 @@ def processCarPaint(f, blocks):
         v = struct.unpack('<f', f.read(4))[0]
         w = struct.unpack('<f', f.read(4))[0]
         
-        extra1 = struct.unpack('<f', f.read(4))[0]
-        extra2 = struct.unpack('<f', f.read(4))[0]
+        normal = struct.unpack('<f', f.read(4))[0]
+        deformedNormal = struct.unpack('<f', f.read(4))[0]
         extra3 = struct.unpack('<f', f.read(4))[0]
         extra4 = struct.unpack('<f', f.read(4))[0]
         
-        #normals.append(((extra1/65536), (extra2/65536), (extra3/65536), (extra4/65536), w/65536))
-        
+        normals.append(tuple(unpack(deformedNormal, [1.0, 1.0/65536.0, 1.0/256.0])))
         uvs.append((u, 1-v))   
         
     #Get Faces
@@ -403,6 +408,7 @@ def processCarPaint(f, blocks):
     mesh.tessfaces.add(faceCount/3)
     
     mesh.vertices.foreach_set("co", unpack_list(verts))
+    mesh.vertices.foreach_set("normal", unpack_list(normals))
     mesh.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
     mesh.tessface_uv_textures.new()
     
@@ -417,26 +423,6 @@ def processCarPaint(f, blocks):
     mesh.update()
     
     obj = bpy.data.objects.new("Mesh_CarPaint_0", mesh)
-    
-    normalX = obj.vertex_groups.new("NormalX")
-    normalY = obj.vertex_groups.new("NormalY")
-    normalZ = obj.vertex_groups.new("NormalZ")
-    normalW = obj.vertex_groups.new("NormalW")
-    normalA = obj.vertex_groups.new("NormalA")
-    
-    for n in range(vertCount): 
-        vertIndices = []
-        
-        vertIndices.append(n)
-        
-        normalX.add(vertIndices, normals[n][0], 'REPLACE')
-        normalY.add(vertIndices, normals[n][1], 'REPLACE')
-        normalZ.add(vertIndices, normals[n][2], 'REPLACE')
-        normalW.add(vertIndices, normals[n][3], 'REPLACE')
-        normalA.add(vertIndices, normals[n][4], 'REPLACE')
-        
-        #print((normals[n][0]-0.5)*131072)
-
     blocks.append(obj)
 
 def calcTangent(uv1, uv2, uv3, vert1, vert2, vert3):
