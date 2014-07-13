@@ -16,6 +16,7 @@ string printString(struct STRING &s) {
 enum PackOrder {
     XZY,
     ZXY,
+    XYZ,
 };
 
 typedef struct (PackOrder order) {
@@ -30,6 +31,10 @@ typedef struct (PackOrder order) {
         x = packed / 256.0f;
         y = packed / 65536.0f;
         z = packed;
+    } else if (order == XYZ) {
+        x = packed;
+        y = packed / 256.0f;
+        z = packed / 65536.0f;
     }
 
     x -= Floor(x);
@@ -118,6 +123,33 @@ struct CarPaint {
     uint deformTable[256];
 };
 
+struct Vertex {
+    float posX;
+    float posY;
+    float posZ;
+    PackedVector packed1(XZY);
+
+    float u;
+    float v;
+    PackedVector packed2(XYZ);
+    PackedVector packed3(XYZ);
+};
+
+struct CarPaintSimple {
+    ubyte version;
+
+    float unknownf[9];
+    uint unknown[5];
+
+    Material material;
+
+    uint vertexCount;
+    Vertex vertices[vertexCount];
+
+    uint faceCount;
+    short faces[faceCount];
+};
+
 struct DeformableWindowData0 {
     float posX;
     float posY;
@@ -179,6 +211,7 @@ struct RBM {
         switch (typeHash) {
             case 3448970869:    CarPaint carPaint; break;
             case 112326146:     DeformableWindow deformableWindow; break;
+            case 2173928592:    CarPaintSimple carPaintSimple; break;
         }
         uint blockFooter <hidden=true>;
     }
