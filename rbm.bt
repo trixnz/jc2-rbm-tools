@@ -67,7 +67,7 @@ struct UnknownData0 {
     float Unknown28;
     float Unknown2C;
     float Unknown30;
-    float Unknown34;
+    int Unknown34;
 };
 
 struct Material {
