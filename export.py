@@ -243,7 +243,7 @@ def processCarPaint(f, mesh):
             
             
             norm = mesh.vertices[v].normal
-            packedNorm = pack([norm.x, norm.y, norm.z])
+            packedNorm = pack([norm.x, norm.z, norm.y])
 
             #tangent = mesh.vertices[v].tangent
             #packedTangent = pack([norm.z, norm.x, norm.y])
