@@ -249,8 +249,8 @@ def processCarPaint(f, mesh):
             #packedTangent = pack([norm.z, norm.x, norm.y])
 
             f.write(struct.pack("<f", packedNorm))
-            f.write(struct.pack("<f", 0))
             f.write(struct.pack("<f", packedNorm))
+            f.write(struct.pack("<f", 0))
             f.write(struct.pack("<f", 0))
 
     #write faces
