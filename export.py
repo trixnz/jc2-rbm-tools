@@ -7,6 +7,10 @@ newVerts = []
 newExtra5 = []
 newIndex = []
 
+def pack(vec):
+    vec = [(x + 1)/2 for x in vec]
+    return sum([a*b for a,b in zip(vec, [1, 256, 65536])])
+
 def checkUV(uv, vert, extra5):
     
     for u in range(len(newUvs)):
@@ -207,100 +211,47 @@ def processCarPaint(f, mesh):
         verts_in_face = polys.vertices
         
         print("Normal: %d %d %d" % (polys.normal.x, polys.normal.y, polys.normal.z))
-        
-        
-        if(polys.normal.x == 0.0 and polys.normal.y == 0.0 and polys.normal.z == 0.0):
-            for v in verts_in_face:
-            
-                norm = mesh.vertices[v].normal
-                
-                normalX = 32000+(norm.y*32000)
-                normalY = 32000+((math.atan2(norm.x, norm.z)/3.14159)*32000)
-                
-                #vertex positions
-                f.write(struct.pack("<f", -mesh.vertices[v].co.x))
-                f.write(struct.pack("<f", mesh.vertices[v].co.z))
-                f.write(struct.pack("<f", mesh.vertices[v].co.y))
-                f.write(struct.pack("<f", 0))
-                
-                f.write(struct.pack("<H", int(normalX)))
-                f.write(struct.pack("<H", int(normalX)))
-                f.write(struct.pack("<H", int(normalX)))
-                f.write(struct.pack("<H", int(normalX)))
-        else:
-            for v in verts_in_face:
-            
-                norm = mesh.vertices[v].normal
-                
-                normalX = 32000+(norm.y*32000)
-                normalY = 32000+((math.atan2(norm.x, norm.z)/3.14159)*32000)
-                
-                #vertex positions
-                f.write(struct.pack("<f", -mesh.vertices[v].co.x))
-                f.write(struct.pack("<f", mesh.vertices[v].co.z))
-                f.write(struct.pack("<f", mesh.vertices[v].co.y))
-                f.write(struct.pack("<f", 0))
-                
-                f.write(struct.pack("<H", int(normalX)))
-                f.write(struct.pack("<H", int(normalX)))
-                f.write(struct.pack("<H", int(normalX)))
-                f.write(struct.pack("<H", int(normalX)))
-            
 
-
+        for v in verts_in_face:
+            #vertex positions
+            f.write(struct.pack("<f", -mesh.vertices[v].co.x))
+            f.write(struct.pack("<f", mesh.vertices[v].co.z))
+            f.write(struct.pack("<f", mesh.vertices[v].co.y))
+            f.write(struct.pack("<f", 0))
+            
+            # unknown
+            f.write(struct.pack("<H", 0))
+            f.write(struct.pack("<H", 0))
+            f.write(struct.pack("<H", 0))
+            f.write(struct.pack("<H", 0))
+            
     #Get Extra Data
     f.write(struct.pack("<I", vertexCount))
     print("UVs: %f" % (vertexCount))
-    
-    
     
     for polys in mesh.polygons:
         verts_in_face = polys.vertices
         uvLayer = mesh.uv_layers.active.data[:]
         
-        if(polys.normal.x == 0.0 and polys.normal.y == 0.0 and polys.normal.z == 0.0):
-            for v in verts_in_face:
-                
-                norm = mesh.vertices[v].normal
-                
-                normalX = 32000+(norm.y*32000)
-                normalY = 32000+((math.atan2(norm.x, norm.z)/3.14159)*32000)
-                
-                u1 = uvLayer[count].uv.x
-                v1 = 1 - uvLayer[count].uv.y
-                
-                f.write(struct.pack("<f", u1))
-                f.write(struct.pack("<f", v1))
-                f.write(struct.pack("<f", 0))
-                
-                f.write(struct.pack("<f", normalX))
-                f.write(struct.pack("<f", normalX))
-                f.write(struct.pack("<f", int(math.floor(normalY))))
-                f.write(struct.pack("<f", int(math.floor(normalY))))
-                
-                count += 1
-        else:
-            for v in verts_in_face:
+        for v in verts_in_face:
+            u1 = uvLayer[count].uv.x
+            v1 = 1 - uvLayer[count].uv.y
             
-                norm = mesh.vertices[v].normal
-                
-                normalX = 32000+(norm.y*32000)
-                normalY = 32000+((math.atan2(norm.x, norm.z)/3.14159)*32000)
-                
-                u1 = uvLayer[count].uv.x
-                v1 = 1 - uvLayer[count].uv.y
-                
-                f.write(struct.pack("<f", u1))
-                f.write(struct.pack("<f", v1))
-                f.write(struct.pack("<f", 0))
-                
-                f.write(struct.pack("<f", -normalX))
-                f.write(struct.pack("<f", -normalX))
-                f.write(struct.pack("<f", -int(math.floor(normalY))))
-                f.write(struct.pack("<f", -int(math.floor(normalY))))
-                
-                count += 1
+            f.write(struct.pack("<f", u1))
+            f.write(struct.pack("<f", v1))
+            f.write(struct.pack("<f", 0))
             
+            
+            norm = mesh.vertices[v].normal
+            packedNorm = pack([norm.x, norm.y, norm.z])
+
+            #tangent = mesh.vertices[v].tangent
+            #packedTangent = pack([norm.z, norm.x, norm.y])
+
+            f.write(struct.pack("<f", packedNorm))
+            f.write(struct.pack("<f", 0))
+            f.write(struct.pack("<f", packedNorm))
+            f.write(struct.pack("<f", 0))
 
     #write faces
     f.write(struct.pack("<I", vertexCount))
