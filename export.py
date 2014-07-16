@@ -214,7 +214,7 @@ def processCarPaint(f, mesh):
 
         for v in verts_in_face:
             #vertex positions
-            f.write(struct.pack("<f", -mesh.vertices[v].co.x))
+            f.write(struct.pack("<f", mesh.vertices[v].co.x))
             f.write(struct.pack("<f", mesh.vertices[v].co.z))
             f.write(struct.pack("<f", mesh.vertices[v].co.y))
             f.write(struct.pack("<f", 0))
