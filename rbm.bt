@@ -52,20 +52,27 @@ string printPackedVector(struct PackedVector &p) {
     return ret;
 }
 
+typedef struct {
+    float X;
+    float Y;
+    float Z;
+} Vector3 <read=printVector3>;
+
+string printVector3(struct Vector3 &p) {
+    local string ret;
+    SPrintf(ret, "(%.4f, %.4f, %.4f)", p.X, p.Y, p.Z);
+    return ret;
+}
 
 struct UnknownData0 {
-    float Unknown00;
-    float Unknown04;
-    float Unknown08;
-    float Unknown0C;
-    float Unknown10;
-    float Unknown14;
-    float Unknown18;
-    float Unknown1C;
-    float Unknown20;
+    Vector3 colorTone1;
+    Vector3 colorTone2;
+    float Unknown18; // Related to Windows in some way
+    float Unknown1C; // Related to Windows in some way
+    float Shininess;
     float Unknown24;
     float Unknown28;
-    float Unknown2C;
+    float DirtRatioMaybe;
     float Unknown30;
     int Unknown34;
 };
