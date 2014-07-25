@@ -1,36 +1,35 @@
 import bpy
 import math
 import struct
+import os
 from bpy_extras.io_utils import unpack_list, unpack_face_list
 
-def frac(v):
-    return [x - math.floor(x) for x in v]
+# Shitty hack
+currentLoadPath = ''
 
-def unpack(packed, unpacker):
-    unpacked = [packed * x for x in unpacker]
+def readRBM(context, filepath):
+    global currentLoadPath
+    currentLoadPath = os.path.dirname(filepath)
 
-    return [(x * 2) - 1 for x in frac(unpacked)]
-
-def read_some_data(context, filepath, use_some_setting):
-    print("running read_some_data...")
-    
+    print('Loading RBM from %s' % (filepath))   
     
     f = open(filepath, 'rb')
     
     blocks = []
     
-    #Read Header
+    # Read in the RBM magic number
     headerLength = struct.unpack('<i', f.read(4))[0]
     headerStr = '<%ds' % headerLength
     header = struct.unpack(headerStr, f.read(5))[0].decode()
-    print(header)
     
-    #skip unknown
-    unk1 = struct.unpack('<i', f.read(4))[0]
-    unk2 = struct.unpack('<i', f.read(4))[0]
-    unk3 = struct.unpack('<i', f.read(4))[0]
+    # Read in the version
+    versionMajor = struct.unpack('<i', f.read(4))[0]
+    versionMinor = struct.unpack('<i', f.read(4))[0]
+    versionRevision = struct.unpack('<i', f.read(4))[0]
+
+    print('Version %i.%i.r%i' % (versionMajor, versionMinor, versionRevision))
     
-    #Get Min and Max x, y, z
+    # Read in the bounding box of the model
     minX = struct.unpack('<f', f.read(4))[0]
     minY = struct.unpack('<f', f.read(4))[0]
     minZ = struct.unpack('<f', f.read(4))[0]
@@ -40,28 +39,27 @@ def read_some_data(context, filepath, use_some_setting):
     
     print("Max X: %f Max Y: %f Max Z: %f\nMin X: %f Min Y: %f Min Z: %f" % (maxX, maxY, maxZ, minX, minY, minZ))
     
-    #get number of render blocks
     blockCount = struct.unpack('<i', f.read(4))[0]
-    
-    print("Bytes: %d" % int(f.tell()))
     
     #Process every render block
     for block in range(blockCount):
         blockType = struct.unpack('<I', f.read(4))[0]
         
         print("BlockType: %d" % blockType)
-        
-        if(blockType == 2173928592):
-            processCarPaintSimple(f, blocks)
-        elif(blockType == 3448970869):
-            processCarPaint(f, blocks)
+        if(blockType == CarPaintSimpleBlock.NameHash):
+            CarPaintSimpleBlock.read(f, blocks)
+        elif(blockType == CarPaintBlock.NameHash):
+            CarPaintBlock.read(f, blocks)
         elif(blockType == 112326146):
             processDeformableWindow(f, blocks)
         elif(blockType == 1583709984):
             processSkinnedGeneral(f, blocks)
         elif(blockType == 3587672800):
             processLambert(f, blocks)
-            
+        else:
+            print('RIP')
+        # Read the block footer
+        f.read(4)        
     
     f.close()
     
@@ -70,6 +68,52 @@ def read_some_data(context, filepath, use_some_setting):
         base.select = True
 
     return {'FINISHED'}
+
+def readLengthString(f):
+    length = struct.unpack('<I', f.read(4))[0]
+    return f.read(length).decode('utf8')
+
+def readPackedVector(f, format):
+    packed = struct.unpack('<f', f.read(4))[0]
+
+    output = Vector()
+    if format == 'XZY':
+        output.x = packed
+        output.y = packed / 65536.0
+        output.z = packed / 256.0
+    elif format == 'ZXY':
+        output.x = packed / 256.0
+        output.y = packed / 65536.0
+        output.z = packed
+    elif format == 'XYZ':
+        output.x = packed
+        output.y = packed / 256.0
+        output.z = packed / 65536.0
+
+    output.x -= math.floor(output.x)
+    output.y -= math.floor(output.y)
+    output.z -= math.floor(output.z)
+
+    output.x = output.x*2 - 1
+    output.y = output.y*2 - 1
+    output.z = output.z*2 - 1
+
+    return output
+
+def readMaterials(f):
+    material = {}
+    material['undeformedDiffuseTexture'] = readLengthString(f)
+    material['undeformedNormalMap'] = readLengthString(f)
+    material['undeformedPropertiesMap'] = readLengthString(f)
+    material['deformedDiffuseTexture'] = readLengthString(f)
+    material['deformedNormalMap'] = readLengthString(f)
+    material['deformedPropertiesMap'] = readLengthString(f)
+    material['normalMapEx3'] = readLengthString(f)
+    material['shadowMapTexture'] = readLengthString(f)
+    # Skip unknown value
+    f.read(4)
+
+    return material
 
 def processLambert(f, blocks):
     verts = []
@@ -309,271 +353,250 @@ def processSkinnedGeneral(f, blocks):
         
         
 
-def processCarPaint(f, blocks):
-    verts = []
-    faces = []
-    uvs = []
-    texs = []
-    normals = []
-    
-    print("Bytes: %d" % int(f.tell()))
-    
-    #Get Version
-    version = struct.unpack('<B', f.read(1))[0]
-    
-    #Skip unknwon data
-    f.read(56)
-    
-    #Get Textures
-    for i in range(8):
-        length = struct.unpack('<I', f.read(4))[0]
-        texStr = '<%ds' % length
-        tex = struct.unpack(texStr, f.read(length))[0].decode()
-        texs.append(tex)
-        
-        print("Texture: %s" % tex)
-        
-    #skip unknown data
-    f.read(4)
-    
-    #Get Vertices
-    vertCount = struct.unpack('<I', f.read(4))[0]
-    print("Vertices: %d" % vertCount)
-    
-    for vert in range(vertCount):
-        
-        x = struct.unpack('<f', f.read(4))[0]
-        y = struct.unpack('<f', f.read(4))[0]
-        z = struct.unpack('<f', f.read(4))[0]
-        w = struct.unpack('<f', f.read(4))[0]
-               
-        extra1 = (struct.unpack('<H', f.read(2))[0])
-        extra2 = (struct.unpack('<H', f.read(2))[0])
-        extra3 = (struct.unpack('<H', f.read(2))[0])
-        extra4 = (struct.unpack('<H', f.read(2))[0])
-        
-        print("%d %d %d %d" %(extra1, extra2, extra3, extra4))
-        #print("%d %d" %(extra1, extra2))
-        
-        #skip data
-        #f.read(4)
-        
-        verts.append((x, z, y))
-        
-     
-    #Get Extra Data
-    uvCount = struct.unpack('<I', f.read(4))[0]
-    print("Uvs: %d" % uvCount)
-        
-     
-    for uv in range(uvCount):  
-        u = struct.unpack('<f', f.read(4))[0]
-        v = struct.unpack('<f', f.read(4))[0]
-        w = struct.unpack('<f', f.read(4))[0]
-        
-        normal = struct.unpack('<f', f.read(4))[0]
-        deformedNormal = struct.unpack('<f', f.read(4))[0]
-        extra3 = struct.unpack('<f', f.read(4))[0]
-        extra4 = struct.unpack('<f', f.read(4))[0]
-        
-        normals.append(tuple(unpack(deformedNormal, [1.0, 1.0/65536.0, 1.0/256.0])))
-        uvs.append((u, 1-v))   
-        
-    #Get Faces
-    faceCount = struct.unpack('<I', f.read(4))[0]
-    print("Faces: %d" % faceCount)
-    
-    for face in range(int(faceCount/3)):
-        
-        vert1 = struct.unpack('<H', f.read(2))[0]
-        vert2 = struct.unpack('<H', f.read(2))[0]
-        vert3 = struct.unpack('<H', f.read(2))[0]
+class CarPaintBlock:
+    class CarPaint0:
+        def read(self, f):
+            self.x = struct.unpack('<f', f.read(4))[0]
+            self.y = struct.unpack('<f', f.read(4))[0]
+            self.z = struct.unpack('<f', f.read(4))[0]
+            self.w = struct.unpack('<f', f.read(4))[0]
+                   
+            self.texCoordA = (struct.unpack('<H', f.read(2))[0])
+            self.texCoordB = (struct.unpack('<H', f.read(2))[0])
+            self.texCoordC = (struct.unpack('<H', f.read(2))[0])
+            self.texCoordD = (struct.unpack('<H', f.read(2))[0])   
 
-        faces.append((vert1, vert3, vert2))
+    class CarPaint1:
+        def read(self, f):
+            self.u = struct.unpack('<f', f.read(4))[0]
+            self.v = struct.unpack('<f', f.read(4))[0]
+            self.w = struct.unpack('<f', f.read(4))[0]
 
-    
-    
-    #Skip unknown array
-    f.read(1024)
+            self.normal = readPackedVector(f, 'XZY')
+            self.deformedNormal = readPackedVector(f, 'XZY')
+            self.tangent = readPackedVector(f, 'ZXY')
+            self.deformedTangent = readPackedVector(f, 'ZXY')
 
-    #Read Check
-    check = struct.unpack('<I', f.read(4))[0]
-    
-        
-    print("Bytes: %d" % int(f.tell()))
-    
-    #Add object data
-    mesh = bpy.data.meshes.new("Mesh")
-    mesh.vertices.add(vertCount)
-    mesh.tessfaces.add(faceCount/3)
-    
-    mesh.vertices.foreach_set("co", unpack_list(verts))
-    mesh.vertices.foreach_set("normal", unpack_list(normals))
-    mesh.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
-    mesh.tessface_uv_textures.new()
-    
-    for face in range(int(faceCount/3)):
-        uv = mesh.tessface_uv_textures[0].data[face]
-        
-        uv.uv1 = uvs[faces[face][0]]
-        uv.uv2 = uvs[faces[face][1]]
-        uv.uv3 = uvs[faces[face][2]]
-    
-    mesh.validate()
-    mesh.update()
-    
-    obj = bpy.data.objects.new("Mesh_CarPaint_0", mesh)
-    blocks.append(obj)
+    NameHash = 0xCD931E75
 
-def calcTangent(uv1, uv2, uv3, vert1, vert2, vert3):
-    x1 = vert2.x - vert1.x;
-    x2 = vert3.x - vert1.x;
-    
-    y1 = vert2.y - vert1.y;
-    y2 = vert3.y - vert1.y;
-    
-    z1 = vert2.z - vert1.z;
-    z2 = vert3.z - vert1.z;
-    
-    s1 = uv2.x - uv1.x;
-    s2 = uv3.x - uv1.x;
-    
-    t1 = uv2.y - uv1.y;
-    t2 = uv3.y - uv1.y;
-    
-    float
-    
+    @staticmethod
+    def read(f, blocks):
+        #Get Version
+        version = struct.unpack('<B', f.read(1))[0]
+        
+        # Skip unknown data
+        f.read(56)
 
-def processCarPaintSimple(f, blocks):
-    verts = []
-    faces = []
-    uvs = []
-    normals = []
-    texs = []
-    
-    #Get Version
-    version = struct.unpack('<B', f.read(1))[0]
-    
-    #skip unknown
-    #f.read(56)
-    
-    print("Bytes: %d" % int(f.tell()))
-    
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
-    print( struct.unpack('<f', f.read(4))[0] )
+        # Read in the materials
+        materials = readMaterials(f)
+        # Read in the CarPaint0 blocks
+        carPaintData0 = []
+        carPaintData0Count = struct.unpack('<I', f.read(4))[0]
+        for i in range(carPaintData0Count):
+            carPaint = CarPaintBlock.CarPaint0()
+            carPaint.read(f)
 
-    print("Bytes: %d" % int(f.tell()))
-    
-    print( struct.unpack('<I', f.read(4))[0] )
-    print( struct.unpack('<I', f.read(4))[0] )
-    print( struct.unpack('<I', f.read(4))[0] )
-    print( struct.unpack('<I', f.read(4))[0] )
-    print( struct.unpack('<I', f.read(4))[0] )
-   
-    print("Bytes: %d" % int(f.tell()))
-   
-    #Get Textures
-    for i in range(8):
-        length = struct.unpack('<I', f.read(4))[0]
-        texStr = '<%ds' % length
-        tex = struct.unpack(texStr, f.read(length))[0].decode()
-        texs.append(tex)
-        
-        print("Texture: %s" % tex)
-        
-    #skip unknown data
-    print(struct.unpack('<I', f.read(4))[0])
+            carPaintData0.append(carPaint)
 
+        # Read in the CarPaint1 blocks
+        carPaintData1 = []
+        carPaintData1Count = struct.unpack('<I', f.read(4))[0]
+        for i in range(carPaintData1Count):
+            carPaint = CarPaintBlock.CarPaint1()
+            carPaint.read(f)
 
-    #Get Vertic
-    vertCount = struct.unpack('<I', f.read(4))[0]
-    print("Vertices: %d" % vertCount)
-    
-    for vert in range(vertCount):
-        
-        x = -struct.unpack('<f', f.read(4))[0]
-        y = struct.unpack('<f', f.read(4))[0]
-        z = struct.unpack('<f', f.read(4))[0]
-        w = struct.unpack('<f', f.read(4))[0]
-        
-        u = struct.unpack('<f', f.read(4))[0]
-        v = struct.unpack('<f', f.read(4))[0]
-        
-        extra1 = (struct.unpack('<H', f.read(2))[0])
-        extra2 = (struct.unpack('<H', f.read(2))[0])
-        extra3 = (struct.unpack('<H', f.read(2))[0])
-        extra4 = (struct.unpack('<H', f.read(2))[0])
-        
-        
-        
-        
-        verts.append((x, z, y))
-        uvs.append((u, 1-v))
-        normals.append(((extra1/65536), (extra2/65536), (extra3/65536), (extra4/65536), w/65536))
-        
-    #Get Faces
-    faceCount = struct.unpack('<I', f.read(4))[0]/3
-    print("Faces: %d" % faceCount)
-    
-    for face in range(int(faceCount)):
-        vert1 = struct.unpack('<H', f.read(2))[0]
-        vert2 = struct.unpack('<H', f.read(2))[0]
-        vert3 = struct.unpack('<H', f.read(2))[0]
-        
-        faces.append((vert1, vert2, vert3))
+            carPaintData1.append(carPaint)
 
-
-    #Read Check
-    check = struct.unpack('<I', f.read(4))[0]
-    
-    print("Bytes: %d" % int(f.tell()))
-    
-    #Add object data
-    mesh = bpy.data.meshes.new("Mesh")
-    mesh.vertices.add(vertCount)
-    mesh.tessfaces.add(faceCount)
-    
-    mesh.vertices.foreach_set("co", unpack_list(verts))
-    mesh.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
-    mesh.tessface_uv_textures.new()
-    
-    for face in range(int(faceCount)):
-        uv = mesh.tessface_uv_textures[0].data[face]
-
-        uv.uv1 = uvs[faces[face][0]]
-        uv.uv2 = uvs[faces[face][1]]
-        uv.uv3 = uvs[faces[face][2]]
-    
-    mesh.validate()
-    mesh.update()
-    
-    obj = bpy.data.objects.new("Mesh_CarPaintSimple_0", mesh)
-    
-    normalX = obj.vertex_groups.new("NormalX")
-    normalY = obj.vertex_groups.new("NormalY")
-    normalZ = obj.vertex_groups.new("NormalZ")
-    normalW = obj.vertex_groups.new("NormalW")
-    normalA = obj.vertex_groups.new("NormalA")
-    
-    for n in range(vertCount): 
-        vertIndices = []
-        mesh.vertices[n].normal
-        vertIndices.append(n)
+        # Read in the faces
+        faceCount = struct.unpack('<I', f.read(4))[0]
         
-        normalX.add(vertIndices, normals[n][0], 'REPLACE')
-        normalY.add(vertIndices, normals[n][1], 'REPLACE')
-        normalZ.add(vertIndices, normals[n][2], 'REPLACE')
-        normalW.add(vertIndices, normals[n][3], 'REPLACE')
-        normalA.add(vertIndices, normals[n][4], 'REPLACE')
+        faces = []
+        for face in range(int(faceCount/3)):
+            vert1 = struct.unpack('<H', f.read(2))[0]
+            vert2 = struct.unpack('<H', f.read(2))[0]
+            vert3 = struct.unpack('<H', f.read(2))[0]
 
-    blocks.append(obj)
+            faces.append((vert1, vert3, vert2))
+
+        deformTable = []
+        for i in range(256):
+            deformTable.append(struct.unpack('<I', f.read(4))[0])
+
+        # Create Mesh
+        mesh = bpy.data.meshes.new('Mesh')
+
+        mesh.vertices.add(len(carPaintData0))
+        mesh.tessfaces.add(int(len(faces)))
+
+        # Build the vertices
+        for i in range(len(carPaintData0)):
+            data0 = carPaintData0[i]
+            data1 = carPaintData1[i]
+
+            vert = mesh.vertices[i]
+            # Blender uses a right handed coordinate system, so Z is up.
+            vert.co = [data0.x, data0.z, data0.y]
+            vert.normal = data1.normal
+
+        # Build the faces
+        for i in range(len(faces)):
+            tessFace = mesh.tessfaces[i]
+            tessFace.vertices = faces[i]
+            tessFace.use_smooth = True
+
+        # Build the textures        
+        uvTexture = mesh.tessface_uv_textures.new()
+
+        for face in range(len(faces)):
+            uv = uvTexture.data[face]
+
+            tmp = faces[face][0]
+            uv.uv1 = [carPaintData1[tmp].u, 1-carPaintData1[tmp].v]
+
+            tmp = faces[face][1]
+            uv.uv2 = [carPaintData1[tmp].u, 1-carPaintData1[tmp].v]
+
+            tmp = faces[face][2]
+            uv.uv3 = [carPaintData1[tmp].u, 1-carPaintData1[tmp].v]
+
+        material = bpy.data.materials.new('DiffuseMaterial')
+        mesh.materials.append(material)
+
+        # Load up the diffuse texture
+        diffTex = bpy.data.textures.new('DiffuseTexture', 'IMAGE')
+        diffTex.image = bpy.data.images.load(filepath=os.path.join(currentLoadPath, materials['undeformedDiffuseTexture']))
+
+        # Set the texture parameters
+        diffTexSlot = material.texture_slots.create(0)
+        diffTexSlot.texture_coords = 'UV'
+        diffTexSlot.texture = diffTex
+
+        # Load up the normal mapping texture
+        bumpMapTex = bpy.data.textures.new('NormalTexture', 'IMAGE')
+        bumpMapTex.image = bpy.data.images.load(filepath=os.path.join(currentLoadPath, materials['undeformedNormalMap']))
+
+        # Set the texture parameters
+        bumpMapTexSlot = material.texture_slots.create(1)
+        bumpMapTexSlot.texture_coords = 'UV'
+        bumpMapTexSlot.texture = bumpMapTex
+        # This is a normal mapping, so we don't want colours
+        bumpMapTexSlot.use_map_color_diffuse = False
+        # But we do want to flag it as a normal map..
+        bumpMapTexSlot.use_map_normal = True
+
+        mesh.validate()
+        mesh.update()
+
+        obj = bpy.data.objects.new('Mesh_CarPaint', mesh)
+        blocks.append(obj)
+
+class CarPaintSimpleBlock:
+    class CarPaint0:
+        def read(self, f):
+            self.x = struct.unpack('<f', f.read(4))[0]
+            self.y = struct.unpack('<f', f.read(4))[0]
+            self.z = struct.unpack('<f', f.read(4))[0]
+
+            self.packed1 = readPackedVector(f, 'XZY')
+            self.u = struct.unpack('<f', f.read(4))[0]
+            self.v = struct.unpack('<f', f.read(4))[0]
+            self.packed2 = readPackedVector(f, 'XYZ')
+            self.packed3 = readPackedVector(f, 'XYZ')
+
+    NameHash = 0x81938490
+
+    def read(f, blocks):
+        version = struct.unpack('<B', f.read(1))[0]
+
+        # Skip unknown data
+        f.read(56)
+
+        # Read in the materials
+        materials = readMaterials(f)
+
+        # Read in the CarPaint0 blocks
+        carPaintData0 = []
+        carPaintData0Count = struct.unpack('<I', f.read(4))[0]
+        for i in range(carPaintData0Count):
+            carPaint = CarPaintSimpleBlock.CarPaint0()
+            carPaint.read(f)
+
+            carPaintData0.append(carPaint) 
+
+        # Read in the faces
+        faceCount = struct.unpack('<I', f.read(4))[0]
+
+        faces = []
+        for face in range(int(faceCount/3)):
+            vert1 = struct.unpack('<H', f.read(2))[0]
+            vert2 = struct.unpack('<H', f.read(2))[0]
+            vert3 = struct.unpack('<H', f.read(2))[0]
+
+            faces.append((vert1, vert3, vert2))
+
+        # Create Mesh
+        mesh = bpy.data.meshes.new('Mesh')
+
+        mesh.vertices.add(len(carPaintData0))
+        mesh.tessfaces.add(int(len(faces)))
+
+        for i in range(len(carPaintData0)):
+            data0 = carPaintData0[i]
+
+            vert = mesh.vertices[i]
+            # Blender uses a right handed coordinate system, so Z is up.
+            vert.co = [data0.x, data0.z, data0.y]
+            #vert.normal = data1.normal
+
+        for i in range(len(faces)):
+            tessFace = mesh.tessfaces[i]
+            tessFace.vertices = faces[i]
+            tessFace.use_smooth = True
+        
+        uvTexture = mesh.tessface_uv_textures.new()
+
+        for face in range(len(faces)):
+            uv = uvTexture.data[face]
+
+            tmp = faces[face][0]
+            uv.uv1 = [carPaintData0[tmp].u, 1-carPaintData0[tmp].v]
+
+            tmp = faces[face][1]
+            uv.uv2 = [carPaintData0[tmp].u, 1-carPaintData0[tmp].v]
+
+            tmp = faces[face][2]
+            uv.uv3 = [carPaintData0[tmp].u, 1-carPaintData0[tmp].v]
+
+        material = bpy.data.materials.new('DiffuseMaterial')
+        mesh.materials.append(material)
+
+        # Load up the diffuse texture
+        diffTex = bpy.data.textures.new('DiffuseTexture', 'IMAGE')
+        diffTex.image = bpy.data.images.load(filepath=os.path.join(currentLoadPath, materials['undeformedDiffuseTexture']))
+
+        # Set the texture parameters
+        diffTexSlot = material.texture_slots.create(0)
+        diffTexSlot.texture_coords = 'UV'
+        diffTexSlot.texture = diffTex
+
+        # Load up the normal mapping texture
+        bumpMapTex = bpy.data.textures.new('NormalTexture', 'IMAGE')
+        bumpMapTex.image = bpy.data.images.load(filepath=os.path.join(currentLoadPath, materials['undeformedNormalMap']))
+
+        # Set the texture parameters
+        bumpMapTexSlot = material.texture_slots.create(1)
+        bumpMapTexSlot.texture_coords = 'UV'
+        bumpMapTexSlot.texture = bumpMapTex
+        # This is a normal mapping, so we don't want colours
+        bumpMapTexSlot.use_map_color_diffuse = False
+        # But we do want to flag it as a normal map..
+        bumpMapTexSlot.use_map_normal = True
+
+        mesh.validate()
+        mesh.update()
+
+        obj = bpy.data.objects.new('Mesh_CarPaintSimple', mesh)
+        blocks.append(obj)
 
 def processDeformableWindow(f, blocks):
     verts = []
@@ -669,8 +692,6 @@ def processDeformableWindow(f, blocks):
 
     blocks.append(obj)
     
-    
-
 # ImportHelper is a helper class, defines filename and
 # invoke() function which calls the file selector.
 from bpy_extras.io_utils import ImportHelper
@@ -691,24 +712,9 @@ class ImportSomeData(Operator, ImportHelper):
             options={'HIDDEN'},
             )
 
-    # List of operator properties, the attributes will be assigned
-    # to the class instance from the operator settings before calling.
-    use_setting = BoolProperty(
-            name="Example Boolean",
-            description="Example Tooltip",
-            default=True,
-            )
-
-    type = EnumProperty(
-            name="Example Enum",
-            description="Choose between two items",
-            items=(('OPT_A', "First Option", "Description one"),
-                   ('OPT_B', "Second Option", "Description two")),
-            default='OPT_A',
-            )
-
     def execute(self, context):
-        return read_some_data(context, self.filepath, self.use_setting)
+        print('opening rbm')
+        return readRBM(context, self.filepath)
 
 
 # Only needed if you want to add into a dynamic menu
@@ -731,3 +737,7 @@ if __name__ == "__main__":
 
     # test call
     bpy.ops.import_test.some_data('INVOKE_DEFAULT')
+
+# exec(open('D:\Just Cause 2 RE\jc2-rbm-tools\import.py').read())
+#if __name__ == "__main__":
+    #readRBM(C, r'D:\Just Cause 2 RE\Extracted Archives\pc1\exported\vehicles\lave\lave.v045_firetruck_unpack\v045-body_m_lod1.rbm')

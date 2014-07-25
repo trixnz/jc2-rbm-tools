@@ -145,9 +145,7 @@ struct Vertex {
 struct CarPaintSimple {
     ubyte version;
 
-    float unknownf[9];
-    uint unknown[5];
-
+    UnknownData0 unknownData0;
     Material material;
 
     uint vertexCount;
