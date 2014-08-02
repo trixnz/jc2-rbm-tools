@@ -7,9 +7,17 @@ newVerts = []
 newExtra5 = []
 newIndex = []
 
-def pack(vec):
-    vec = [(x + 1)/2 for x in vec]
-    return sum([a*b for a,b in zip(vec, [1, 256, 65536])])
+def pack(vec, format):
+    scalar = []
+    if format == 'XZY':
+        scalar = [1.0, 65536.0, 256.0]
+    elif format == 'ZXY':
+        scalar = [256.0, 65536.0, 1.0]
+    elif format == 'XYZ':
+        scalar = [1.0, 256.0, 65536.0]
+
+    vec = [(x + 1.0)/2.0 for x in vec]
+    return sum([a*b for a,b in zip(vec, scalar)])
 
 def checkUV(uv, vert, extra5):
     
@@ -243,7 +251,7 @@ def processCarPaint(f, mesh):
             
             
             norm = mesh.vertices[v].normal
-            packedNorm = pack([norm.x, norm.z, norm.y])
+            packedNorm = pack([norm.x, norm.z, norm.y], 'XZY')
 
             #tangent = mesh.vertices[v].tangent
             #packedTangent = pack([norm.z, norm.x, norm.y])
