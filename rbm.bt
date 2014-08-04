@@ -241,7 +241,7 @@ struct General {
             PackedFloat U1(coordScale);
             PackedFloat V1(coordScale);
             PackedFloat U2(coordScale);
-            PackedFloat U2(coordScale);
+            PackedFloat V2(coordScale);
     
             PackedVector packedVec1(XYZ);
             PackedVector packedVec2(XYZ);
