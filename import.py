@@ -74,7 +74,8 @@ def readLengthString(f):
     length = struct.unpack('<I', f.read(4))[0]
     return f.read(length).decode('utf8')
 
-def readPackedVector(packed, format):
+def readPackedVector(f, format):
+    packed = struct.unpack('<f', f.read(4))[0]
     scalar = []
     if format == 'XZY':
         scalar = [1.0, 65536.0, 256.0]
@@ -86,7 +87,7 @@ def readPackedVector(packed, format):
     scaled = [packed/x for x in scalar]
     output = [(x - math.floor(x))*2 - 1 for x in scaled]
 
-    return Vector(output[0], output[1], output[2])
+    return Vector(output)
 
 def readMaterials(f):
     material = {}
