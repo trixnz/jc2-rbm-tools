@@ -3,6 +3,7 @@ import math
 import struct
 import os
 from bpy_extras.io_utils import unpack_list, unpack_face_list
+from mathutils import Vector
 
 # Shitty hack
 currentLoadPath = ''
