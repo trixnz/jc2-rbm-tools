@@ -1,14 +1,18 @@
 import bpy
 import struct
 import math
+import time
 
 newUvs = []
 newVerts = []
 newExtra5 = []
 newIndex = []
 
+
+
 def pack(vec, format):
     scalar = []
+
     if format == 'XZY':
         vec = [vec[0], vec[2], vec[1]]
     elif format == 'ZXY':
@@ -24,6 +28,7 @@ def pack(vec, format):
     packedFloat = ((float(packedInt)) / (float((1 << 24))) ) * 65536.0
     
     return (packedFloat)
+
 
 def checkUV(uv, vert, extra5):
     
@@ -162,10 +167,11 @@ def write_some_data(context, filepath, use_some_setting):
     return {'FINISHED'}
 
 def processCarPaint(f, mesh):
+    start = time.time()
     print("CarPaint")
     
-    f2 = open("C:\\Users\\Jake\Desktop\\normals.txt", 'w')
-    f3 = open("C:\\Users\\Jake\Desktop\\packed.txt", 'w')
+    #f2 = open("C:\\Users\\Jake\Desktop\\normals.txt", 'w')
+    #f3 = open("C:\\Users\\Jake\Desktop\\packed.txt", 'w')
     
     f.write(struct.pack("<I" , 3448970869))
     
@@ -174,13 +180,13 @@ def processCarPaint(f, mesh):
     
     
     #unknown material settings
-    f.write(struct.pack("<f", 0.0020288010127842426))
-    f.write(struct.pack("<f", 0.49314092844724655))
-    f.write(struct.pack("<f", 0.06030166149139404))
-    f.write(struct.pack("<f", 0.00697691785171628))
-    f.write(struct.pack("<f", 0.07870697975158691))
-    f.write(struct.pack("<f", 0.10956159979104996))
-    f.write(struct.pack("<f", 30.0))
+    f.write(struct.pack("<f", 0.265))
+    f.write(struct.pack("<f", 0.29))
+    f.write(struct.pack("<f", 0.6479))
+    f.write(struct.pack("<f", 0.036))
+    f.write(struct.pack("<f", 0.11))
+    f.write(struct.pack("<f", 0.33))
+    f.write(struct.pack("<f", 64.0))
     f.write(struct.pack("<f", 0))
     f.write(struct.pack("<f", 0.4000000059604645))
     
@@ -188,15 +194,15 @@ def processCarPaint(f, mesh):
     f.write(struct.pack("<I", 1045220557))
     f.write(struct.pack("<I", 0))
     f.write(struct.pack("<I", 1053609165))
-    f.write(struct.pack("<I", 1058642330))
-    f.write(struct.pack("<I", 1280))
+    f.write(struct.pack("<I", 1065356216))
+    f.write(struct.pack("<I", 1024))
     
    
     
     #textures
-    tex1 = "v067_body_dif.dds"
+    tex1 = "v028_dif.dds"
     tex2 = "flattangentspace_nrm.dds"
-    tex3 = "v067_body_mpm.dds"
+    tex3 = "v028_mpm.dds"
     
     #write textures
     f.write(struct.pack("<I", len(tex1)))
@@ -218,6 +224,10 @@ def processCarPaint(f, mesh):
     #uknown data
     f.write(struct.pack("<I", 3))
     
+    
+    end = time.time()
+    print(str(end - start) + " Seconds")
+    start = end
     
     #write vertex data
 
@@ -245,15 +255,19 @@ def processCarPaint(f, mesh):
             f.write(struct.pack("<H", 0))
             f.write(struct.pack("<H", 0))
             f.write(struct.pack("<H", 0))
+    
+    end = time.time()
+    print(str(end - start) + " Seconds")
+    start = end
             
     #Get Extra Data
     f.write(struct.pack("<I", vertexCount))
     print("UVs: %f" % (vertexCount))
     
+    uvLayer = mesh.uv_layers.active.data[:]
+    
     for polys in mesh.polygons:
         verts_in_face = polys.vertices
-        #verts_in_face = [polys.vertices[0], polys.vertices[1], polys.vertices[2]]
-        uvLayer = mesh.uv_layers.active.data[:]
         
         for v in verts_in_face:
             
@@ -267,22 +281,21 @@ def processCarPaint(f, mesh):
             
             norm = mesh.vertices[v].normal
             
-            packedNorm = pack([norm.x, norm.y, norm.z], 'XYZ')
-
-            ##f2.write(str(norm.xzy)+"\n")
-            ##f3.write(str(packedNorm)+"\n")
-
-            #tangent = mesh.vertices[v].tangent
-            packedTangent = pack([norm.x, norm.z, norm.y], 'XYZ')
-            print("Packed Normal: "+str(packedNorm))
+            packedNorm = pack([norm.x, norm.z, norm.y], 'XYZ')
+            packedTangent = pack([norm.x, norm.y, norm.z], 'XYZ')
 
             f.write(struct.pack("<f", packedNorm))
             f.write(struct.pack("<f", packedNorm))
             f.write(struct.pack("<f", packedTangent))
             f.write(struct.pack("<f", packedTangent))
+            
+            #print(count)
             
             count += 1
             
+    end = time.time()
+    print(str(end - start) + " Seconds")
+    start = end
 
     #write faces
     f.write(struct.pack("<I", vertexCount))
@@ -295,6 +308,9 @@ def processCarPaint(f, mesh):
     for i in range(256):
         f.write(struct.pack("<f", 1.0))
     
+    
+    end = time.time()
+    print(str(end - start) + " Seconds")
     f.write(struct.pack("<i", -1985229329))
     
 def processDeformableWindow(f, mesh):
