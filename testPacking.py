@@ -33,16 +33,33 @@ def readPackedVector(f, format):
 def pack(vec, format):
     scalar = []
     if format == 'XZY':
-        scalar = [1.0, 65536.0, 256.0]
+        vec = [vec[0], vec[2], vec[1]]
     elif format == 'ZXY':
-        scalar = [256.0, 65536.0, 1.0]
+        vec = [vec[2], vec[0], vec[1]]
     elif format == 'XYZ':
         scalar = [1.0, 256.0, 65536.0]
 
-    vec = [(x + 1.0)/2.0 for x in vec]
-    return sum([a*b for a,b in zip(vec, scalar)])
+    #vec = [(x + 1.0)/2.0 for x in vec]
+    
+    vec[0] = (vec[0] + 1.0) / 2.0 * 255
+    vec[1] = (vec[1] + 1.0) / 2.0 * 255
+    vec[2] = (vec[2] + 1.0) / 2.0 * 255
+    
+    #newVec = Vector()
+    
+    #newVec.x = vec[0] * scalar[0]
+    #newVec.y = vec[1] * scalar[1]
+    #newVec.z = vec[2] * scalar[2]
+    
+    packedInt = (int(vec[2]) << 16) | (int(vec[1]) << 8) | int(vec[0])
+    packedFloat = ((float(packedInt)) / (float((1 << 24))) ) * 65536.0
+    
+    total = packedFloat
+    #return sum([a*b for a,b in zip(vec, scalar)])
+    
+    return (total)
 
-vec = [-0.6712, 0.2233, 0.7068]
+vec = [-0.2, -0.3, -0.4]
 
 print(str(vec)+"\n")
 
