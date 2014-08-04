@@ -10,14 +10,20 @@ newIndex = []
 def pack(vec, format):
     scalar = []
     if format == 'XZY':
-        scalar = [1.0, 65536.0, 256.0]
+        vec = [vec[0], vec[2], vec[1]]
     elif format == 'ZXY':
-        scalar = [256.0, 65536.0, 1.0]
+        vec = [vec[2], vec[0], vec[1]]
     elif format == 'XYZ':
         scalar = [1.0, 256.0, 65536.0]
-
-    vec = [(x + 1.0)/2.0 for x in vec]
-    return sum([a*b for a,b in zip(vec, scalar)])
+    
+    vec[0] = (vec[0] + 1.0) / 2.0 * 255
+    vec[1] = (vec[1] + 1.0) / 2.0 * 255
+    vec[2] = (vec[2] + 1.0) / 2.0 * 255
+    
+    packedInt = (int(vec[2]) << 16) | (int(vec[1]) << 8) | int(vec[0])
+    packedFloat = ((float(packedInt)) / (float((1 << 24))) ) * 65536.0
+    
+    return (packedFloat)
 
 def checkUV(uv, vert, extra5):
     
@@ -98,7 +104,7 @@ def write_some_data(context, filepath, use_some_setting):
     objs = bpy.context.selected_objects
     
     f = open(filepath, 'wb')
-    f2 = open("C:\\Users\\mikec_000\\Desktop\\export.txt", 'w')
+    #f2 = open("C:\\export.txt", 'w')
     
     f.write(struct.pack("<i", 5))
     
@@ -109,9 +115,11 @@ def write_some_data(context, filepath, use_some_setting):
     f.write(struct.pack("<I", 13))
     f.write(struct.pack("<I", 0))
     
+    '''
     f2.write("%i\n"%1)
     f2.write("%i\n"%13)
     f2.write("%i\n"%0)
+    '''
     
     MinMax = calculateMinMax(objs[0].data)
     
@@ -123,12 +131,14 @@ def write_some_data(context, filepath, use_some_setting):
     f.write(struct.pack("<f", MinMax[5]))
     f.write(struct.pack("<f", MinMax[4]))
     
+    '''
     f2.write("%f\n"%MinMax[0])
     f2.write("%f\n"%MinMax[2])
     f2.write("%f\n"%MinMax[1])
     f2.write("%f\n"%MinMax[3])
     f2.write("%f\n"%MinMax[5])
     f2.write("%f\n"%MinMax[4])
+    '''
     
     #The number of blocks write carpaintsimple
     f.write(struct.pack("<I", len(objs)))
@@ -153,6 +163,9 @@ def write_some_data(context, filepath, use_some_setting):
 
 def processCarPaint(f, mesh):
     print("CarPaint")
+    
+    f2 = open("C:\\Users\\Jake\Desktop\\normals.txt", 'w')
+    f3 = open("C:\\Users\\Jake\Desktop\\packed.txt", 'w')
     
     f.write(struct.pack("<I" , 3448970869))
     
@@ -218,7 +231,7 @@ def processCarPaint(f, mesh):
     for polys in mesh.polygons:
         verts_in_face = polys.vertices
         
-        print("Normal: %d %d %d" % (polys.normal.x, polys.normal.y, polys.normal.z))
+        #print("Normal: %d %d %d" % (polys.normal.x, polys.normal.y, polys.normal.z))
 
         for v in verts_in_face:
             #vertex positions
@@ -239,9 +252,11 @@ def processCarPaint(f, mesh):
     
     for polys in mesh.polygons:
         verts_in_face = polys.vertices
+        #verts_in_face = [polys.vertices[0], polys.vertices[1], polys.vertices[2]]
         uvLayer = mesh.uv_layers.active.data[:]
         
         for v in verts_in_face:
+            
             u1 = uvLayer[count].uv.x
             v1 = 1 - uvLayer[count].uv.y
             
@@ -251,21 +266,29 @@ def processCarPaint(f, mesh):
             
             
             norm = mesh.vertices[v].normal
-            packedNorm = pack([norm.x, norm.z, norm.y], 'XZY')
+            
+            packedNorm = pack([norm.x, norm.y, norm.z], 'XYZ')
+
+            ##f2.write(str(norm.xzy)+"\n")
+            ##f3.write(str(packedNorm)+"\n")
 
             #tangent = mesh.vertices[v].tangent
-            #packedTangent = pack([norm.z, norm.x, norm.y])
+            packedTangent = pack([norm.x, norm.z, norm.y], 'XYZ')
+            print("Packed Normal: "+str(packedNorm))
 
             f.write(struct.pack("<f", packedNorm))
             f.write(struct.pack("<f", packedNorm))
-            f.write(struct.pack("<f", 0))
-            f.write(struct.pack("<f", 0))
+            f.write(struct.pack("<f", packedTangent))
+            f.write(struct.pack("<f", packedTangent))
+            
+            count += 1
+            
 
     #write faces
     f.write(struct.pack("<I", vertexCount))
     print("Faces: %f" % (vertexCount))
         
-    for i in range(vertexCount):
+    for i in reversed(range(vertexCount)):
         f.write(struct.pack("<H", i))
     
     #unknown array
