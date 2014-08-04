@@ -1,5 +1,6 @@
 LittleEndian();
 
+
 typedef struct {
     uint count;
     if (count > 0)
@@ -49,6 +50,24 @@ typedef struct (PackOrder order) {
 string printPackedVector(struct PackedVector &p) {
     local string ret;
     SPrintf(ret, "(%.4f, %.4f, %.4f)", p.x, p.y, p.z);
+    return ret;
+}
+
+typedef struct (float scale) {
+    short packed <hidden=true>;
+    local float value;
+
+    if (packed == -1)
+        value = -1;
+    else {
+        value = (packed * (1.0 / 32767)) * scale;
+    }
+} PackedFloat <read=printPackedFloat>;
+
+string printPackedFloat(struct PackedFloat &p) {
+    local string ret;
+    SPrintf(ret, "%.4f", p.value);
+
     return ret;
 }
 
@@ -194,6 +213,65 @@ struct DeformableWindow {
     }
 };
 
+struct General {
+    ubyte version;
+
+    if (version == 2) {
+        Warning("Unsupported General version");
+        return;
+    }
+
+    // This is actually a structure.
+    float unk1[9];
+    float coordScale;
+    int flags;
+    float unk2d[6];
+    // ----------------------------
+
+    int unkInts[2];
+    Material material;
+
+    int vertexCount <hidden=true>;
+
+    if (flags) {
+        // Entire structure is passed into the VertexBuffer
+        struct SmallVertex
+        {
+            // Fairly certain at least one of these is the UV
+            PackedFloat U1(coordScale);
+            PackedFloat V1(coordScale);
+            PackedFloat U2(coordScale);
+            PackedFloat U2(coordScale);
+    
+            PackedVector packedVec1(XYZ);
+            PackedVector packedVec2(XYZ);
+            PackedVector packedVec3(XYZ);
+
+            PackedFloat posX(coordScale);
+            PackedFloat posY(coordScale);
+            PackedFloat posZ(coordScale);
+            PackedFloat posW(coordScale);
+        };
+
+        SmallVertex vertices[vertexCount];
+    }
+    else {
+        struct BigVertex
+        {  
+            float posX;
+            float posY;
+            float posZ;
+
+            float unkFloats[7];
+        };
+
+        BigVertex vertices[vertexCount];
+    }
+
+    int faceCount <hidden=true>;
+    short faces[faceCount];
+};
+
 struct RBM {
     uint magicLength;
     char magic[magicLength];
@@ -214,9 +292,13 @@ struct RBM {
     for (i = 0; i < blockCount; i++) {
         uint typeHash <hidden=true>;
         switch (typeHash) {
-            case 3448970869:    CarPaint carPaint; break;
-            case 112326146:     DeformableWindow deformableWindow; break;
-            case 2173928592:    CarPaintSimple carPaintSimple; break;
+            case 0xCD931E75:    CarPaint carPaint; break;
+            case 0x06B1F602:    DeformableWindow deformableWindow; break;
+            case 0x81938490:    CarPaintSimple carPaintSimple; break;
+            case 0xA7583B2B:    General general; break;
+            default:
+                Warning("Failed to deserialize block 0x%x", typeHash);
+                return;
         }
         uint blockFooter <hidden=true>;
     }
